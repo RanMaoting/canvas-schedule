@@ -4,14 +4,13 @@ import { ref } from 'vue'
 
 export function useSideEdge(props: Options) {
   const sideContainer = ref<HTMLDivElement>()
-    // const {} = use
-
-
+  // const {} = use
 
   let sideInstance: Leafer
   function initSide() {
     sideInstance = new Leafer({
       view: sideContainer.value!,
+      type: 'draw',
     })
     const rect = new Rect({
       x: 0,

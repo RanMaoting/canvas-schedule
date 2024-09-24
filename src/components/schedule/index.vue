@@ -1,42 +1,49 @@
 <script setup lang="ts">
 import type { Options } from './typings'
-import { ImageManager, Leafer } from 'leafer-editor'
-import { onBeforeUnmount, onMounted } from 'vue'
-import { useSideEdge } from './hooks'
+import { App, Leafer, MoveEvent, Rect } from 'leafer-editor'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { Ruler } from './Ruler'
 
 const props = defineProps<Options>()
 
-const { initSide, sideContainer } = useSideEdge(props)
-
+const sideContainer = ref<HTMLDivElement>()
 onMounted(() => {
-  initSide()
-})
+  const app = new App({
+    view: sideContainer.value,
+    // 会自动创建 editor实例、tree层、sky层
+    editor: {},
+  })
 
-onBeforeUnmount(() => {
+  const rect = new Rect({
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    fill: '#32cd79',
+    // cornerRadius: [ 50, 80, 0, 80],
+    editable: true,
+  })
+
+  app.tree.add(rect)
+  // app.zoomLayer.x = 50
+  // app.zoomLayer.y = 50
+
+  // new Ruler(app)
+  app.on(MoveEvent.BEFORE_MOVE, (event) => {
+    app.zoomLayer.x = 0
+
+    return false
+  })
+})
+onUnmounted(() => {
   const { list } = Leafer
   list.forEach(leafer => (leafer as Leafer).destroy(true))
   list.destroy()
-  ImageManager.destroy()
 })
 </script>
 
 <template>
-  <div class="w-full h-full grid grid-rows-[52px_1fr] grid-cols-[180px_1fr]">
-    <div class="bg-blue-500">
-      第一行第一列
-    </div>
-    <div class="bg-green-500">
-      第一行第二列
-    </div>
-    <div ref="sideContainer" class="bg-yellow-500">
-      第二行第一列
-    </div>
-    <div class="bg-purple-500">
-      第二行第二列
-    </div>
-  </div>
+  <div ref="sideContainer" class="w-full h-full" />
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>
