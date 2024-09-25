@@ -1,8 +1,8 @@
 {
   "name": "canvas-schedule",
+  "type": "module",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
@@ -14,17 +14,18 @@
   },
   "dependencies": {
     "@unocss/reset": "^0.62.4",
-    "leafer-editor": "^1.0.3",
+    "dayjs": "^1.11.13",
+    "leafer-editor": "^1.0.4",
     "vue": "^3.5.8"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.7.1",
     "@tsconfig/node20": "^20.1.4",
-    "@types/node": "^20.16.5",
+    "@types/node": "^20.16.7",
     "@vitejs/plugin-vue": "^5.1.4",
     "@vitejs/plugin-vue-jsx": "^4.0.1",
     "@vue/tsconfig": "^0.5.1",
-    "eslint": "^9.11.0",
+    "eslint": "^9.11.1",
     "npm-run-all2": "^6.2.3",
     "typescript": "~5.4.5",
     "unocss": "^0.62.4",

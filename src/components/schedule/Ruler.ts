@@ -1,238 +1,168 @@
 import type { App } from 'leafer-editor'
-import { EditorEvent, Group, LayoutEvent, Line, Rect, ResizeEvent, Text } from 'leafer-editor'
+import dayjs from 'dayjs'
+import { EditorEvent, Group, LayoutEvent, LeaferEvent, Line, MoveEvent, Rect, ResizeEvent, Text, ZoomEvent } from 'leafer-editor'
 
-export const HALF_PI = Math.PI / 2
-function getStepByZoom(zoom: number) {
-  /**
-   * 步长研究，参考 figma
-   * 1
-   * 2
-   * 5
-   * 10（对应 500% 往上） 找到规律了： 50 / zoom = 步长
-   * 25（对应 200% 往上）
-   * 50（对应 100% 往上）
-   * 100（对应 50% 往上）
-   * 250
-   * 500
-   * 1000
-   * 2500
-   * 5000
-   */
-  const steps = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000]
-  const step =   / zoom
+const CELL_WIDTH = 100
+// 显示的天数
+const DAYS = 50
 
-  for (let i = 0, len = steps.length; i < len; i++) {
-    if (steps[i] >= step)
-      return steps[i]
-  }
-  return steps[0]
-}
-/**
- * 找出离 value 最近的 segment 的倍数值
- */
-export function getClosestTimesVal(value: number, segment: number) {
-  const n = Math.floor(value / segment)
-  const left = segment * n
-  const right = segment * (n + 1)
-  // console.log('====', value, segment, n, left, right)
+// 资源数
 
-  return value - left <= right - value ? left : right
-}
+// 当前时间
+const now = dayjs().startOf('day')
 export class Ruler {
   group = new Group()
-  /** 文字颜色 */
-  textColor = '#aaa'
-  /** 背景颜色 */
-  bgColor = '#fff'
-  /** 间隔线颜色 */
-  lineColor = '#ccc'
-  /** 下边框颜色 */
-  borderColor = '#ccc'
-  /** 遮罩颜色 */
-  maskColor = '#e2ebff'
+  bgGroup = new Group()
+  // 横向时间group
+  xGroup = new Group()
+  // 纵向资源group
+  yGroup = new Group()
   constructor(private app: App) {
+    this.app.sky.add(this.bgGroup)
     this.app.sky.add(this.group)
+    this.group.add(this.xGroup)
+    this.group.add(this.yGroup)
     this.listen()
   }
 
-  get visible(): boolean {
+  get enable(): boolean {
     return this.group.visible || false
   }
 
-  set visible(visible: boolean) {
-    this.group.visible = visible
+  set enable(enable: boolean) {
+    this.group.visible = enable
     this.drawShape()
   }
 
   drawShape = () => {
-    if (this.visible) {
-      this.group.clear()
-      this.drawRect()
+    if (this.enable) {
+      // this.group.clear()
       this.drawXRuler()
-      this.drawYRuler()
-      this.drawMask()
+      this.moveShape()
     }
   }
 
-  /** 绘制背景 */
+  // 绘制背景-主要是绘制竖线和横线
   drawRect() {
+    this.bgGroup.clear()
     const { width, height } = this.app
     // 背景色
-    this.group.add(new Rect({
+    // 横
+    this.bgGroup.add(new Rect({
       width,
-      height: 20,
-      fill: this.bgColor,
-      zIndex: 10,
+      height: 25,
+      fill: '#EEE',
+      // strokeWidth: 1,
+      // stroke: '#ccc',
     }))
-    this.group.add(new Rect({
-      width: 20,
+    // 竖
+    this.bgGroup.add(new Rect({
+      width: 150,
       height,
-      fill: this.bgColor,
-      zIndex: 10,
+      fill: '#EEE',
+      // strokeWidth: 1,
+      // stroke: '#ccc',
     }))
-    // 线条
-    this.group.add(new Line({
+    this.bgGroup.add(new Line({
       width,
       strokeWidth: 1,
-      stroke: this.borderColor,
+      stroke: '#ccc',
       x: 0,
-      y: 20,
-      zIndex: 50,
+      y: 25,
+      zIndex: 1,
     }))
-    this.group.add(new Line({
+    this.bgGroup.add(new Line({
       width: height,
       strokeWidth: 1,
-      stroke: this.borderColor,
+      stroke: '#ccc',
       rotation: 90,
-      x: 20,
+      x: 150,
       y: 0,
-      zIndex: 50,
+      zIndex: 1,
     }))
-    // 背景+文字
+    // 右上角显示的文字
     this.group.add(new Rect({
-      width: 20,
-      height: 20,
-      fill: this.bgColor,
-      zIndex: 40,
+      width: 150,
+      height: 25,
+      fill: '#fff',
     }))
     this.group.add(new Text({
-      x: 9,
-      y: 9,
-      text: `px`,
-      zIndex: 40,
-      fill: this.textColor,
-      fontSize: 10,
+      width: 100,
+      height: 25,
+      text: '资源',
+      fontSize: 12,
+      fill: '#333',
+      textAlign: 'center',
+      verticalAlign: 'middle',
+    }))
+    this.group.add(new Text({
+      width: 50,
+      height: 25,
+      x: 100,
+      y: 0,
+      text: '时间',
+      fontSize: 12,
+      fill: '#333',
       textAlign: 'center',
       verticalAlign: 'middle',
     }))
   }
 
-  drawXRuler = () => {
+  // 绘制横向的时间栏
+  drawXRuler() {
     const zoom = this.getZoom()
-    const stepInScene = getStepByZoom(zoom)
-
-    const { x: x1 } = this.app.getPagePoint({ x: 0, y: 0 })
-    let startX = getClosestTimesVal(x1, stepInScene)
-    const { x: x2 } = this.app.getPagePoint({ x: this.app.width!, y: 0 })
-    const endX = getClosestTimesVal(x2, stepInScene)
-    // console.log('startX', x1, startX, x2, endX, zoom, stepInScene)
-    while (startX <= endX) {
-      const x = (startX - x1) * zoom
-      const line = new Line({
-        width: 6,
+    this.xGroup.clear()
+    for (let index = 0; index < DAYS; index++) {
+      const rect = new Rect({
+        width: CELL_WIDTH * zoom,
+        height: 25,
+        fill: '#FFF',
+        x: index * CELL_WIDTH * zoom,
         strokeWidth: 1,
-        stroke: this.lineColor,
-        rotation: 90,
-        x,
-        y: 14,
-        zIndex: 30,
+        stroke: '#eee',
       })
-      this.group.add(line)
       const text = new Text({
-        x,
-        y: 8,
-        fill: this.textColor,
-        fontSize: 10,
-        text: `${startX}`,
+        text: now.add(index, 'day').format('MM/DD'),
+        fill: '#333',
         textAlign: 'center',
         verticalAlign: 'middle',
-        zIndex: 30,
+        fontSize: 12,
+        x: index * CELL_WIDTH * zoom,
+        y: 0,
+        width: CELL_WIDTH * zoom,
+        height: 25,
+        textWrap: 'none',
+        textOverflow: 'hide',
       })
-      this.group.add(text)
-      startX += stepInScene
+      const group = new Group()
+      group.add(rect)
+      group.add(text)
+      this.xGroup.add(group)
     }
   }
 
-  drawYRuler = () => {
-    const zoom = this.getZoom()
-    const stepInScene = getStepByZoom(zoom)
-    const { y: y1 } = this.app.getPagePoint({ x: 0, y: 0 })
-    let startY = getClosestTimesVal(y1, stepInScene)
-    const { y: y2 } = this.app.getPagePoint({ x: 0, y: this.app.height! })
-    const endY = getClosestTimesVal(y2, stepInScene)
-    // console.log('startXY',y1,startY,y2,endY,zoom,stepInScene);
-    while (startY <= endY) {
-      const y = (startY - y1) * zoom
-      const line = new Line({
-        width: 6,
-        strokeWidth: 1,
-        stroke: this.lineColor,
-        x: 14,
-        y,
-        zIndex: 30,
-      })
-      this.group.add(line)
-      const text = new Text({
-        x: 8,
-        y,
-        fill: this.textColor,
-        fontSize: 10,
-        rotation: -90,
-        text: `${startY}`,
-        textAlign: 'center',
-        verticalAlign: 'middle',
-        zIndex: 30,
-      })
-      this.group.add(text)
-      startY += stepInScene
-    }
+  // 绘制纵向的资源栏
+  drawYRuler() {
+    this.yGroup.clear()
+    const group = new Group()
   }
 
-  /** 选中图形的遮罩 */
-  drawMask() {
-    const graphs = this.app.editor.list || []
-    for (let i = 0; i < graphs.length; i++) {
-      const graph = graphs[i]
-      const bounds = graph.getBounds()
-      const rectX = new Rect({
-        width: bounds.width,
-        height: 20,
-        fill: this.maskColor,
-        x: bounds.x,
-        zIndex: 20,
-      })
-      this.group.add(rectX)
-      const rectY = new Rect({
-        width: 20,
-        height: bounds.height,
-        fill: this.maskColor,
-        y: bounds.y,
-        zIndex: 20,
-      })
-      this.group.add(rectY)
-    }
+  drawAllShape() {
+    this.drawRect()
+    this.drawShape()
+  }
+
+  moveShape() {
+    this.xGroup.x = this.app.zoomLayer.x
   }
 
   listen() {
-    this.app.tree.on(LayoutEvent.AFTER, this.drawShape)
-    this.app.tree.on(ResizeEvent.RESIZE, this.drawShape)
-    this.app.editor.on(EditorEvent.SELECT, this.drawShape)
-  }
-
-  destroy() {
-    this.app.tree.off(LayoutEvent.AFTER, this.drawShape)
-    this.app.tree.off(ResizeEvent.RESIZE, this.drawShape)
-    this.app.editor.off(EditorEvent.SELECT, this.drawShape)
+    this.app.once(LeaferEvent.VIEW_READY, this.drawAllShape.bind(this))
+    // this.app.tree.on(LayoutEvent.AFTER, this.drawShape.bind(this))
+    this.app.tree.on(ResizeEvent.RESIZE, this.drawAllShape.bind(this))
+    // this.app.editor.on(EditorEvent.SELECT, this.drawShape)
+    this.app.tree.on(ZoomEvent.ZOOM, this.drawShape.bind(this))
+    this.app.tree.on(MoveEvent.MOVE, this.moveShape.bind(this))
   }
 
   getZoom(): number {
